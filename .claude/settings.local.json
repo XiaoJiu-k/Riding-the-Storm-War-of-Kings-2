@@ -1,0 +1,32 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(mkdir *)",
+      "Bash(jar tf *)",
+      "Bash(./gradlew dependencies *)",
+      "Bash(jar xf *)",
+      "Bash(javap -p \"net/minecraft/world/entity/AnimationState.class\")",
+      "Bash(javap -p \"net/minecraft/nbt/CompoundTag.class\")",
+      "Bash(javap -p \"net/minecraft/world/entity/Mob.class\")",
+      "Bash(javap -p \"net/minecraft/world/entity/LivingEntity.class\")",
+      "Bash(javap -p \"net/minecraft/world/entity/SpawnRestriction.class\")",
+      "Bash(javap -p \"net/minecraft/world/entity/WalkAnimationState.class\")",
+      "Bash(javap -p \"net/minecraft/world/item/SpawnEggItem.class\")",
+      "Bash(javap -p \"net/minecraft/world/entity/Entity.class\")",
+      "Bash(javap -p \"net/minecraft/world/entity/monster/Monster.class\")",
+      "Bash(javap *)",
+      "Bash(xargs -I{} jar tf {})",
+      "Bash(./gradlew build *)",
+      "Bash(xargs -I{} sh -c 'jar tf \"{}\" 2>/dev/null | grep -l \"FabricEntityType\" && echo \"FROM: {}\"')",
+      "Bash(mkdir -p /tmp/mc_check)",
+      "Read(//tmp/**)",
+      "Bash(grep 'EntityType$Builder')",
+      "Bash(./gradlew compileJava compileClientJava)",
+      "Bash(grep 'CreativeModeTab$Builder')",
+      "Bash(grep -v \"\\\\\\\\$\")",
+      "Bash(grep \"EntitySpawnReason\\\\|EntityType\\\\$\")",
+      "Bash(grep 'DataComponentMap$Builder')",
+      "Bash(xargs -I{} sh -c 'jar tf \"{}\" 2>/dev/null | grep -q \"fabric/api/object/builder/v1/entity/FabricEntityType\" && echo \"{}\"')"
+    ]
+  }
+}

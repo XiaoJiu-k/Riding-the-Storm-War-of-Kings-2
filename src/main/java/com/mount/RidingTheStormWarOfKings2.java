@@ -1,8 +1,12 @@
 package com.mount;
 
+import com.mount.reg.ModEntities;
+import com.mount.reg.ModItems;
 import net.fabricmc.api.ModInitializer;
 
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.item.Item;
+import net.minecraft.world.level.block.Block;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -21,7 +25,18 @@ public class RidingTheStormWarOfKings2 implements ModInitializer {
 		// However, some things (like resources) may still be uninitialized.
 		// Proceed with mild caution.
 
-		LOGGER.info("Hello Fabric world!");
+		LOGGER.info("Hello Fabric world! - War of Kings 2 initializing...");
+
+		// 注册实体
+		ModEntities.initialize();
+
+		// 注册物品（含刷怪蛋）
+		ModItems.initialize();
+
+		// 注册创造模式物品栏
+		// CreativeModeTab 已在 ModItems 中通过 Supplier 延迟注册
+
+		LOGGER.info("Entities and items registered successfully.");
 	}
 
 	public static ResourceLocation id(String path) {
