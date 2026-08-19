@@ -1,0 +1,38 @@
+{
+	"schemaVersion": 1,
+	"id": "riding-the-storm-war-of-kings-2",
+	"version": "${version}",
+	"name": "Riding the Storm: War of Kings 2",
+	"description": "This is an example description! Tell everyone what your mod is about!",
+	"authors": [
+		"Me!"
+	],
+	"contact": {
+		"homepage": "https://fabricmc.net/",
+		"sources": "https://github.com/FabricMC/fabric-example-mod"
+	},
+	"license": "CC0-1.0",
+	"icon": "assets/riding-the-storm-war-of-kings-2/icon.png",
+	"environment": "*",
+	"entrypoints": {
+		"main": [
+			"com.mount.RidingTheStormWarOfKings2"
+		],
+		"client": [
+			"com.mount.client.RidingTheStormWarOfKings2Client"
+		]
+	},
+	"mixins": [
+		"riding-the-storm-war-of-kings-2.mixins.json",
+		{
+			"config": "riding-the-storm-war-of-kings-2.client.mixins.json",
+			"environment": "client"
+		}
+	],
+	"depends": {
+		"fabricloader": ">=0.19.3",
+		"minecraft": "~1.21.10",
+		"java": ">=21",
+		"fabric-api": "*"
+	}
+}
