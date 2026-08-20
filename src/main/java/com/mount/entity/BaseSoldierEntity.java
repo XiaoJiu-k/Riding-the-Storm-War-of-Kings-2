@@ -1,5 +1,9 @@
 package com.mount.entity;
 
+import net.minecraft.network.chat.Component;
+import net.minecraft.network.syncher.EntityDataAccessor;
+import net.minecraft.network.syncher.EntityDataSerializers;
+import net.minecraft.network.syncher.SynchedEntityData;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.SimpleContainer;
@@ -33,6 +37,9 @@ import java.util.UUID;
  */
 public abstract class BaseSoldierEntity extends Monster {
 
+    /** 等级数据同步器 */
+    private static final EntityDataAccessor<Integer> DATA_LEVEL = SynchedEntityData.defineId(BaseSoldierEntity.class, EntityDataSerializers.INT);
+
     /** 玩家绑定的 UUID（用于区分阵营归属） */
     @Nullable
     private UUID ownerUUID;
@@ -58,6 +65,46 @@ public abstract class BaseSoldierEntity extends Monster {
 
     protected BaseSoldierEntity(EntityType<? extends BaseSoldierEntity> entityType, Level level) {
         super(entityType, level);
+    }
+
+    // ─────────────────────────────────────────────
+    // 等级系统（使用 EntityData 同步，头顶显示等级）
+    // ─────────────────────────────────────────────
+
+    @Override
+    protected void defineSynchedData(SynchedEntityData.Builder builder) {
+        super.defineSynchedData(builder);
+        builder.define(DATA_LEVEL, 1);
+    }
+
+    /** 获取当前等级 */
+    public int getLevel() {
+        return this.entityData.get(DATA_LEVEL);
+    }
+
+    /** 设置等级（自动同步到客户端） */
+    public void setLevel(int level) {
+        this.entityData.set(DATA_LEVEL, Math.max(1, level));
+    }
+
+    /** 等级提升 1 级 */
+    public void levelUp() {
+        setLevel(getLevel() + 1);
+    }
+
+    /**
+     * 使用原版命令方块名称牌方式，在头顶显示等级。
+     * 返回 "Lv.X" 格式的 Component，Minecraft 会自动渲染在实体头顶。
+     */
+    @Override
+    public Component getCustomName() {
+        return Component.literal("Lv." + getLevel());
+    }
+
+    /** 始终返回 true，确保名称牌始终渲染（类似命令方块的效果） */
+    @Override
+    public boolean hasCustomName() {
+        return true;
     }
 
     // ─────────────────────────────────────────────

@@ -97,5 +97,13 @@ public class ModEntityRenderers {
         public HumanoidRenderState createRenderState() {
             return new HumanoidRenderState();
         }
+
+        /**
+         * 强制显示名称牌（等级文字），类似命令方块的效果。
+         */
+        @Override
+        protected boolean shouldShowName(InfantryEntity entity, double squaredDistanceToCamera) {
+            return true;
+        }
     }
 }
