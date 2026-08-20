@@ -1,12 +1,18 @@
 package com.mount.entity;
 
+import net.minecraft.world.InteractionHand;
+import net.minecraft.world.InteractionResult;
+import net.minecraft.world.SimpleContainer;
 import net.minecraft.world.entity.AnimationState;
 import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.SpawnGroupData;
 import net.minecraft.world.entity.ai.attributes.AttributeSupplier;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.monster.Monster;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.ServerLevelAccessor;
 import net.minecraft.world.DifficultyInstance;
@@ -20,6 +26,10 @@ import java.util.UUID;
 /**
  * 兵种实体基类 — 所有士兵（步兵、弓箭手、骑兵等）均继承此类。
  * 外观使用原版史蒂夫模型（HumanoidModel），后续可通过渲染器切换皮肤。
+ *
+ * 功能：
+ * - 右键打开背包（可穿戴装备、武器）
+ * - 预留骑马字段（骑兵专用）
  */
 public abstract class BaseSoldierEntity extends Monster {
 
@@ -35,6 +45,16 @@ public abstract class BaseSoldierEntity extends Monster {
 
     /** idle 动画 tick 计数器 */
     private int idleAnimationTick = 0;
+
+    // ─────────────────────────────────────────────
+    // 骑马预留字段（骑兵专用）
+    // ─────────────────────────────────────────────
+
+    /** 坐骑实体 ID（骑兵使用，-1 表示无坐骑） */
+    private int mountEntityId = -1;
+
+    /** 是否正在骑马 */
+    private boolean isRidingHorse = false;
 
     protected BaseSoldierEntity(EntityType<? extends BaseSoldierEntity> entityType, Level level) {
         super(entityType, level);
@@ -144,6 +164,43 @@ public abstract class BaseSoldierEntity extends Monster {
     }
 
     // ─────────────────────────────────────────────
+    // 骑马预留方法（骑兵专用）
+    // ─────────────────────────────────────────────
+
+    public int getMountEntityId() {
+        return mountEntityId;
+    }
+
+    public void setMountEntityId(int entityId) {
+        this.mountEntityId = entityId;
+    }
+
+    public boolean isRidingHorse() {
+        return isRidingHorse;
+    }
+
+    public void setRidingHorse(boolean riding) {
+        this.isRidingHorse = riding;
+    }
+
+    // ─────────────────────────────────────────────
+    // 右键交互（打开背包）
+    // ─────────────────────────────────────────────
+
+    @Override
+    public InteractionResult mobInteract(Player player, InteractionHand hand) {
+        ItemStack heldItem = player.getItemInHand(hand);
+        // 如果玩家手持空手，打开背包
+        if (heldItem.isEmpty()) {
+            if (!this.level().isClientSide()) {
+                player.openMenu(new SoldierMenuProvider(this));
+            }
+            return InteractionResult.SUCCESS;
+        }
+        return super.mobInteract(player, hand);
+    }
+
+    // ────────────────────────────────────────────
     // 实体初始化（1.21 使用 finalizeSpawn 替代 initialize）
     // ─────────────────────────────────────────────
 

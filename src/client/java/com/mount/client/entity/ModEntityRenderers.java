@@ -6,12 +6,14 @@ import net.fabricmc.fabric.api.client.rendering.v1.EntityModelLayerRegistry;
 import net.fabricmc.fabric.api.client.rendering.v1.EntityRendererRegistry;
 import net.minecraft.client.model.HumanoidModel;
 import net.minecraft.client.model.geom.ModelLayerLocation;
+import net.minecraft.client.model.geom.ModelLayers;
 import net.minecraft.client.model.geom.builders.CubeDeformation;
 import net.minecraft.client.model.geom.builders.LayerDefinition;
+import net.minecraft.client.renderer.entity.ArmorModelSet;
 import net.minecraft.client.renderer.entity.EntityRendererProvider;
 import net.minecraft.client.renderer.entity.HumanoidMobRenderer;
+import net.minecraft.client.renderer.entity.layers.HumanoidArmorLayer;
 import net.minecraft.client.renderer.entity.state.HumanoidRenderState;
-import net.minecraft.client.renderer.entity.state.LivingEntityRenderState;
 import net.minecraft.resources.ResourceLocation;
 
 /**
@@ -23,8 +25,7 @@ public class ModEntityRenderers {
     private ModEntityRenderers() {}
 
     /**
-     * 步兵模型层位置（用于 HumanoidModel 注册）。
-     * 使用自定义名称 "infantry"，避免与 Minecraft 原生模型层冲突。
+     * 步兵模型层位置（使用自定义命名空间，避免与原版玩家模型层冲突）。
      */
     public static final ModelLayerLocation INFANTRY_LAYER = new ModelLayerLocation(
             ResourceLocation.fromNamespaceAndPath("riding-the-storm-war-of-kings-2", "infantry"),
@@ -44,7 +45,7 @@ public class ModEntityRenderers {
      * 在 onInitializeClient 末尾调用。
      */
     public static void initialize() {
-        // 注册步兵模型层（使用 HumanoidModel，外观为史蒂夫）
+        // 注册步兵模型层（64x64 是玩家皮肤的标准尺寸）
         EntityModelLayerRegistry.registerModelLayer(
                 INFANTRY_LAYER,
                 () -> LayerDefinition.create(
@@ -53,8 +54,7 @@ public class ModEntityRenderers {
                 )
         );
 
-        // 注册步兵渲染器（HumanoidMobRenderer 支持盔甲层）
-        // 使用 INFANTRY 直接获取具体类型，避免通配符类型推断问题
+        // 注册步兵渲染器
         EntityRendererRegistry.register(
                 ModEntities.INFANTRY.get(),
                 InfantryRenderer::new
@@ -64,8 +64,8 @@ public class ModEntityRenderers {
     /**
      * 步兵渲染器。
      * 使用 HumanoidMobRenderer，外观与原版史蒂夫一致。
-     * 纹理使用原版 Steve 玩家皮肤。
-     * 1.21.10 的 HumanoidMobRenderer 需要 3 个类型参数：<Entity, RenderState, Model>
+     * 纹理使用自定义步兵纹理。
+     * 盔甲使用原版 HumanoidArmorLayer + ArmorModelSet.bake() 方法渲染。
      */
     public static class InfantryRenderer extends HumanoidMobRenderer<InfantryEntity, HumanoidRenderState, HumanoidModel<HumanoidRenderState>> {
 
@@ -75,6 +75,17 @@ public class ModEntityRenderers {
                     new HumanoidModel<>(context.bakeLayer(INFANTRY_LAYER)),
                     0.5F
             );
+            // 使用原版 ArmorModelSet.bake() 烘焙盔甲模型，然后创建 HumanoidArmorLayer
+            ArmorModelSet<HumanoidModel<HumanoidRenderState>> armorModelSet = ArmorModelSet.bake(
+                    ModelLayers.PLAYER_ARMOR,
+                    context.getModelSet(),
+                    HumanoidModel::new
+            );
+            this.addLayer(new HumanoidArmorLayer<>(
+                    this,
+                    armorModelSet,
+                    context.getEquipmentRenderer()
+            ));
         }
 
         @Override

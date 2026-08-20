@@ -2,6 +2,7 @@ package com.mount;
 
 import com.mount.reg.ModEntities;
 import com.mount.reg.ModItems;
+import com.mount.reg.ModMenuTypes;
 import net.fabricmc.api.ModInitializer;
 
 import net.minecraft.resources.ResourceLocation;
@@ -33,10 +34,10 @@ public class RidingTheStormWarOfKings2 implements ModInitializer {
 		// 注册物品（含刷怪蛋）
 		ModItems.initialize();
 
-		// 注册创造模式物品栏
-		// CreativeModeTab 已在 ModItems 中通过 Supplier 延迟注册
+		// 注册菜单类型
+		ModMenuTypes.initialize();
 
-		LOGGER.info("Entities and items registered successfully.");
+		LOGGER.info("Entities, items, and menus registered successfully.");
 	}
 
 	public static ResourceLocation id(String path) {
