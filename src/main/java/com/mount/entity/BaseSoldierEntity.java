@@ -4,14 +4,20 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.network.syncher.EntityDataAccessor;
 import net.minecraft.network.syncher.EntityDataSerializers;
 import net.minecraft.network.syncher.SynchedEntityData;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.util.RandomSource;
 import net.minecraft.world.InteractionHand;
+import com.mount.util.NameGenerator;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.SimpleContainer;
 import net.minecraft.world.entity.AnimationState;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.EquipmentSlot;
+import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.SpawnGroupData;
+import net.minecraft.world.entity.ai.attributes.AttributeInstance;
+import net.minecraft.world.entity.ai.attributes.AttributeModifier;
 import net.minecraft.world.entity.ai.attributes.AttributeSupplier;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.monster.Monster;
@@ -25,6 +31,7 @@ import net.minecraft.world.level.storage.ValueInput;
 import net.minecraft.world.level.storage.ValueOutput;
 import org.jetbrains.annotations.Nullable;
 
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -39,6 +46,21 @@ public abstract class BaseSoldierEntity extends Monster {
 
     /** 等级数据同步器 */
     private static final EntityDataAccessor<Integer> DATA_LEVEL = SynchedEntityData.defineId(BaseSoldierEntity.class, EntityDataSerializers.INT);
+
+    /** 经验进度同步器（0.0 ~ 1.0） */
+    private static final EntityDataAccessor<Float> DATA_XP_PROGRESS = SynchedEntityData.defineId(BaseSoldierEntity.class, EntityDataSerializers.FLOAT);
+
+    /** 总经验值同步器 */
+    private static final EntityDataAccessor<Integer> DATA_XP_TOTAL = SynchedEntityData.defineId(BaseSoldierEntity.class, EntityDataSerializers.INT);
+
+    /** 等级属性加成 Modifier ID */
+    private static final ResourceLocation LEVEL_HEALTH_MODIFIER = ResourceLocation.fromNamespaceAndPath("riding-the-storm-war-of-kings-2", "level_health");
+    private static final ResourceLocation LEVEL_ATTACK_MODIFIER = ResourceLocation.fromNamespaceAndPath("riding-the-storm-war-of-kings-2", "level_attack");
+    private static final ResourceLocation LEVEL_SPEED_MODIFIER = ResourceLocation.fromNamespaceAndPath("riding-the-storm-war-of-kings-2", "level_speed");
+    private static final ResourceLocation LEVEL_FOLLOW_MODIFIER = ResourceLocation.fromNamespaceAndPath("riding-the-storm-war-of-kings-2", "level_follow");
+
+    /** 名字数据同步器 */
+    private static final EntityDataAccessor<String> DATA_NAME = SynchedEntityData.defineId(BaseSoldierEntity.class, EntityDataSerializers.STRING);
 
     /** 玩家绑定的 UUID（用于区分阵营归属） */
     @Nullable
@@ -75,30 +97,164 @@ public abstract class BaseSoldierEntity extends Monster {
     protected void defineSynchedData(SynchedEntityData.Builder builder) {
         super.defineSynchedData(builder);
         builder.define(DATA_LEVEL, 1);
+        builder.define(DATA_XP_PROGRESS, 0.0F);
+        builder.define(DATA_XP_TOTAL, 0);
+        builder.define(DATA_NAME, "");
     }
+
+    // ─────────────────────────────────────────────
+    // 经验等级系统
+    // ─────────────────────────────────────────────
 
     /** 获取当前等级 */
     public int getLevel() {
         return this.entityData.get(DATA_LEVEL);
     }
 
+    /** 获取经验进度（0.0 ~ 1.0） */
+    public float getXpProgress() {
+        return this.entityData.get(DATA_XP_PROGRESS);
+    }
+
+    /** 获取总经验值 */
+    public int getXpTotal() {
+        return this.entityData.get(DATA_XP_TOTAL);
+    }
+
+    /**
+     * 计算升到下一级所需的经验值。
+     * 公式：level * 7 + 3（类似原版玩家的升级曲线）
+     */
+    public int getXpNeededForNextLevel() {
+        int level = getLevel();
+        return level * 7 + 3;
+    }
+
+    /**
+     * 添加经验值。当经验值满时自动升级，属性各+1。
+     * @return 是否升级
+     */
+    public boolean addXp(int amount) {
+        if (this.level().isClientSide()) return false;
+
+        int xpTotal = getXpTotal() + amount;
+        int xpNeeded = getXpNeededForNextLevel();
+
+        if (xpTotal >= xpNeeded) {
+            // 升级
+            int newLevel = getLevel() + 1;
+            int remainingXp = xpTotal - xpNeeded;
+
+            this.entityData.set(DATA_LEVEL, newLevel);
+            this.entityData.set(DATA_XP_TOTAL, remainingXp);
+            this.entityData.set(DATA_XP_PROGRESS, (float) remainingXp / getXpNeededForNextLevel());
+
+            // 升级时属性各+1
+            applyLevelModifiers(newLevel);
+
+            return true;
+        } else {
+            // 未升级，更新进度
+            this.entityData.set(DATA_XP_TOTAL, xpTotal);
+            this.entityData.set(DATA_XP_PROGRESS, (float) xpTotal / xpNeeded);
+            return false;
+        }
+    }
+
+    /**
+     * 应用等级属性加成。每升一级，所有属性 +1。
+     */
+    private void applyLevelModifiers(int level) {
+        // 移除旧的 modifier（防止重复叠加）
+        removeLevelModifiers();
+
+        // 每级 +1 生命值（2.0 = 1颗心）
+        AttributeInstance healthAttr = this.getAttribute(Attributes.MAX_HEALTH);
+        if (healthAttr != null) {
+            healthAttr.addPermanentModifier(new AttributeModifier(
+                    LEVEL_HEALTH_MODIFIER, (double) level, AttributeModifier.Operation.ADD_VALUE));
+        }
+
+        // 每级 +1 攻击伤害
+        AttributeInstance attackAttr = this.getAttribute(Attributes.ATTACK_DAMAGE);
+        if (attackAttr != null) {
+            attackAttr.addPermanentModifier(new AttributeModifier(
+                    LEVEL_ATTACK_MODIFIER, (double) level, AttributeModifier.Operation.ADD_VALUE));
+        }
+
+        // 每级 +1 移动速度（基础值 0.25，+0.01 每级）
+        AttributeInstance speedAttr = this.getAttribute(Attributes.MOVEMENT_SPEED);
+        if (speedAttr != null) {
+            speedAttr.addPermanentModifier(new AttributeModifier(
+                    LEVEL_SPEED_MODIFIER, level * 0.01, AttributeModifier.Operation.ADD_VALUE));
+        }
+
+        // 每级 +1 追踪范围
+        AttributeInstance followAttr = this.getAttribute(Attributes.FOLLOW_RANGE);
+        if (followAttr != null) {
+            followAttr.addPermanentModifier(new AttributeModifier(
+                    LEVEL_FOLLOW_MODIFIER, (double) level, AttributeModifier.Operation.ADD_VALUE));
+        }
+    }
+
+    /** 移除等级属性加成 */
+    private void removeLevelModifiers() {
+        AttributeInstance healthAttr = this.getAttribute(Attributes.MAX_HEALTH);
+        if (healthAttr != null) healthAttr.removeModifier(LEVEL_HEALTH_MODIFIER);
+
+        AttributeInstance attackAttr = this.getAttribute(Attributes.ATTACK_DAMAGE);
+        if (attackAttr != null) attackAttr.removeModifier(LEVEL_ATTACK_MODIFIER);
+
+        AttributeInstance speedAttr = this.getAttribute(Attributes.MOVEMENT_SPEED);
+        if (speedAttr != null) speedAttr.removeModifier(LEVEL_SPEED_MODIFIER);
+
+        AttributeInstance followAttr = this.getAttribute(Attributes.FOLLOW_RANGE);
+        if (followAttr != null) followAttr.removeModifier(LEVEL_FOLLOW_MODIFIER);
+    }
+
     /** 设置等级（自动同步到客户端） */
     public void setLevel(int level) {
         this.entityData.set(DATA_LEVEL, Math.max(1, level));
+        applyLevelModifiers(level);
     }
 
     /** 等级提升 1 级 */
     public void levelUp() {
-        setLevel(getLevel() + 1);
+        addXp(getXpNeededForNextLevel());
+    }
+
+    // ─────────────────────────────────────────────
+    // 随机名字系统
+    // ─────────────────────────────────────────────
+
+    /** 获取士兵名字 */
+    public String getSoldierName() {
+        return this.entityData.get(DATA_NAME);
+    }
+
+    /** 设置士兵名字 */
+    public void setSoldierName(String name) {
+        this.entityData.set(DATA_NAME, name);
     }
 
     /**
-     * 使用原版命令方块名称牌方式，在头顶显示等级。
-     * 返回 "Lv.X" 格式的 Component，Minecraft 会自动渲染在实体头顶。
+     * 生成随机名字（使用 NameGenerator 工具类）。
+     */
+    private String generateRandomName() {
+        return NameGenerator.generateName(this.random);
+    }
+
+    /**
+     * 使用原版命令方块名称牌方式，在头顶显示 "名字 Lv.X"。
+     * 左边显示名字，右边显示等级。
      */
     @Override
     public Component getCustomName() {
-        return Component.literal("Lv." + getLevel());
+        String name = getSoldierName();
+        if (name == null || name.isEmpty()) {
+            return Component.literal("Lv." + getLevel());
+        }
+        return Component.literal(name + " Lv." + getLevel());
     }
 
     /** 始终返回 true，确保名称牌始终渲染（类似命令方块的效果） */
@@ -198,6 +354,11 @@ public abstract class BaseSoldierEntity extends Monster {
             output.putLong("OwnerMost", ownerUUID.getMostSignificantBits());
             output.putLong("OwnerLeast", ownerUUID.getLeastSignificantBits());
         }
+        // 保存士兵名字
+        String name = getSoldierName();
+        if (name != null && !name.isEmpty()) {
+            output.putString("SoldierName", name);
+        }
     }
 
     @Override
@@ -207,6 +368,11 @@ public abstract class BaseSoldierEntity extends Monster {
         var leastBits = input.getLong("OwnerLeast");
         if (mostBits.isPresent() && leastBits.isPresent()) {
             ownerUUID = new UUID(mostBits.get(), leastBits.get());
+        }
+        // 加载士兵名字
+        var nameOpt = input.getString("SoldierName");
+        if (nameOpt.isPresent()) {
+            setSoldierName(nameOpt.get());
         }
     }
 
@@ -258,7 +424,10 @@ public abstract class BaseSoldierEntity extends Monster {
             EntitySpawnReason spawnReason,
             @Nullable SpawnGroupData spawnData) {
         SpawnGroupData data = super.finalizeSpawn(level, difficulty, spawnReason, spawnData);
-        // 新生成的士兵默认不绑定所有者
+        // 新生成的士兵随机获得一个名字
+        if (getSoldierName().isEmpty()) {
+            setSoldierName(generateRandomName());
+        }
         return data;
     }
 
